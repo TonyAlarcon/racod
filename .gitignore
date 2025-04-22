@@ -1,0 +1,40 @@
+tony/playground
+
+
+__pycache__/
+
+# Compiled object files
+*.o
+*.obj
+*.so
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Compiled binaries (Linux/macOS)
+a.out
+astar
+
+# Windows executables
+*.exe
+*.dll
+*.lib
+
+# Build directories (if you use one)
+build/
+bin/
+Debug/
+Release/
+
+# CMake cache and generated files (if you use CMake)
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+
+# VSCode / CLion / Xcode project files
+.vscode/
+.idea/
+*.xcworkspace
+*.xcuserstate

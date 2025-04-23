@@ -4,8 +4,8 @@ import random
 from typing import List, Tuple
 import json
 from collections import deque
-
-
+import os
+import csv
 
 def load_map(path):
     with open(path, 'r') as f:
@@ -52,14 +52,6 @@ def check_collision_obb(pos: Tuple[int, int], grid: List[List[int]], radius: int
                 return False
     return True
 
-def save_sampled_pairs(pairs, map_name, base_dir="tony/dataset/boston/"):
-    json_file = base_dir + map_name + "_sampled_pairs.json"
-    data = {
-        "map_name": map_name,
-        "pairs": pairs
-    }
-    with open(json_file, 'w') as f:
-        json.dump(data, f, indent=4)
     
     
 def save_map_with_markers(
@@ -160,20 +152,43 @@ def is_reachable(grid: List[List[str]],
 
     return False
 
+def save_samples_to_csv(map_path: str, samples: List[Tuple[Tuple[int, int], Tuple[int, int]]], radius: int, output_dir: str = '.') -> str:
+    """
+    Save start/goal pairs and radius to a CSV file named <mapname>_samples.csv in output_dir.
+    Returns the path to the CSV file.
+    """
+    # Extract map name without extension
+    map_name = os.path.splitext(os.path.basename(map_path))[0]
+    filename = f"{map_name}_samples.csv"
+    file_path = os.path.join(output_dir, filename)
+
+    # Write CSV
+    with open(file_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        # Header row
+        writer.writerow(['start_x', 'start_y', 'goal_x', 'goal_y', 'radius'])
+        for (sx, sy), (gx, gy) in samples:
+            writer.writerow([sx, sy, gx, gy, radius])
+
+    return file_path
 
 
 if __name__ == "__main__":
     # Example usage
-    grid = load_map("tony/dataset/boston/Boston_0_1024.map")
+    map_file = "tony/dataset/boston/Boston_0_1024.map"
+    grid = load_map(map_file)
 
-    start = (332,758)
-    goal =  (80,773)
-    print(is_reachable(grid, start, goal, radius=1, connectivity=8))
-    #save_map_as_png(grid, filename="tony/dataset/boston/boston_map.png")
+    # Sample feasible start/goal pairs
+    robot_radius = 3
+    sample_count = 100
+    pairs = sample_feasible_pairs(grid, robot_radius, sample_count)
+
+    # Save to CSV
+    output_dir = "tony/dataset/boston"
+    csv_path = save_samples_to_csv(map_file, pairs, robot_radius, output_dir)
+    print(f"Saved {len(pairs)} samples to {csv_path}")
     
-    #state_pairs = sample_feasible_pairs(grid, robot_radius=1, sample_count=10)
     
-    #save_sampled_pairs(state_pairs, "boston_0_1024")
     
     
     

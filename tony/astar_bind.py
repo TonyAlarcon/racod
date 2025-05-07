@@ -63,9 +63,9 @@ if __name__ == "__main__":
 
     print("A* extension initialized.")
     # Configuration parameters
-    threads = [1, 2, 4, 8, 10]
-    #algorithms = ["pool", "serial", "pool_ras"]
-    algorithms = ["createjoin", "createjoin_ras"]
+    threads = [1, 2, 4, 8, 16, 32]
+    algorithms = ["pool", "serial", "pool_ras", "create_join", "createjoin_ras"]
+    #algorithms = ["createjoin", "createjoin_ras"]
     max_depth = 8
     algo = "pool"
     output_dir = "./tony/results/speedup"

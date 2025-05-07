@@ -184,7 +184,8 @@ vector<pair<int,int>> astarSerial(const vector<string>& grid,
     open.push(new Node(sx, sy, 0, hfunc(sx, sy), nullptr));
 
     while (!open.empty()) {
-        Node* cur = open.top(); open.pop();
+        Node* cur = open.top(); 
+        open.pop();
         int x = cur->x, y = cur->y;
         if (closed[y][x]) { delete cur; continue; }
         closed[y][x] = true;
@@ -370,21 +371,31 @@ vector<pair<int,int>> astarPoolRAS(
         // Speculative run-ahead
         if (!futs.empty()) {
             int depth = maxDepth;
-            int dir = getDirIndex(cur);
-            Node* pred = cur;
+            int dir   = getDirIndex(cur);
+            // start from the real current position
+            int px    = cur->x;
+            int py    = cur->y;
+            // precompute the step delta
+            int dx    = RAS_DELTAS[dir].first;
+            int dy    = RAS_DELTAS[dir].second;
+
             while (futs.size() < numThreads && depth-- > 0) {
-                int px = pred->x + RAS_DELTAS[dir].first;
-                int py = pred->y + RAS_DELTAS[dir].second;
+                // step forward
+                px += dx;
+                py += dy;
                 if (px < 0 || px >= W || py < 0 || py >= H) break;
-                pred = new Node(px, py, 0, 0, nullptr);
+
+                // speculative neighbors of (px,py)
                 for (auto [nx,ny] : getNeighbors(px, py, grid)) {
-                    if (closed[ny][nx] || status[ny][nx] != CollisionStatus::UNKNOWN) continue;
+                    if (closed[ny][nx] ||
+                        status[ny][nx] != CollisionStatus::UNKNOWN)
+                        continue;
                     status[ny][nx] = CollisionStatus::PENDING;
-                    futs.emplace_back(pool.submit([&, nx, ny](){
+                    futs.emplace_back(pool.submit([&, nx, ny]() {
                         uint64_t k = key(nx, ny);
                         { lock_guard<mutex> lk(cache_m);
-                            if (auto it = cache.find(k); it != cache.end())
-                                return make_pair(make_pair(nx, ny), it->second);
+                        if (auto it = cache.find(k); it != cache.end())
+                            return make_pair(make_pair(nx, ny), it->second);
                         }
                         bool free = checkCollisionOBB(grid, nx, ny, radius);
                         { lock_guard<mutex> lk(cache_m); cache[k] = free; }
@@ -394,6 +405,7 @@ vector<pair<int,int>> astarPoolRAS(
                 }
             }
         }
+
 
         // Collect
         for (auto &f : futs) {
@@ -554,30 +566,46 @@ vector<pair<int,int>> astarCreateJoinRAS(
             });
         }
 
-        // speculative run-ahead
+
+        // speculative run‐ahead 
         if (!threads.empty()) {
             int depth = maxDepth;
-            int dir = getDirIndex(cur);
-            Node* pred = cur;
+            int dir   = getDirIndex(cur);
+            // start from the real current position
+            int px    = cur->x;
+            int py    = cur->y;
+            // precompute the step delta for this direction
+            int dx    = RAS_DELTAS[dir].first;
+            int dy    = RAS_DELTAS[dir].second;
+
             while (threads.size() < numThreads && depth-- > 0) {
-                int px = pred->x + RAS_DELTAS[dir].first;
-                int py = pred->y + RAS_DELTAS[dir].second;
+                // step one cell forward in the predicted direction
+                px += dx;
+                py += dy;
                 if (px < 0 || px >= W || py < 0 || py >= H) break;
-                pred = new Node(px, py, 0.0, 0.0, nullptr);
-                arena.push_back(pred);
+
+                // gather neighbors of this speculative cell
                 auto specNbrs = getNeighbors(px, py, grid);
                 for (auto& nb : specNbrs) {
                     int nx2 = nb.first, ny2 = nb.second;
-                    if (closed[ny2][nx2] || status[ny2][nx2] != CollisionStatus::UNKNOWN) continue;
+                    // skip if already closed or already checked
+                    if (closed[ny2][nx2] ||
+                        status[ny2][nx2] != CollisionStatus::UNKNOWN)
+                        continue;
+                    // mark pending and launch collision‐check thread
                     status[ny2][nx2] = CollisionStatus::PENDING;
                     threads.emplace_back([&, nx2, ny2] {
                         bool ok2 = checkCollisionOBB(grid, nx2, ny2, radius);
-                        status[ny2][nx2] = ok2 ? CollisionStatus::FREE : CollisionStatus::BLOCKED;
+                        status[ny2][nx2] = ok2
+                            ? CollisionStatus::FREE
+                            : CollisionStatus::BLOCKED;
                     });
-                    if (threads.size() >= numThreads) break;
+                    if (threads.size() >= numThreads)
+                        break;
                 }
             }
         }
+
 
         // join all threads
         for (auto& t : threads) t.join();

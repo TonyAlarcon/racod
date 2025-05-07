@@ -112,7 +112,7 @@ def astar_serial(grid: List[List[int]], start: Tuple[int,int], goal: Tuple[int,i
             continue
         closed_set.add(pos)
 
-        if pos == goal:
+        if pos == goal: #reconstruct path
             # Reconstruct path
             path = []
             n = current
@@ -135,7 +135,6 @@ def astar_serial(grid: List[List[int]], start: Tuple[int,int], goal: Tuple[int,i
 
             if not free:
                 continue  # Collision, skip
-
             # Valid neighbor: compute costs and push
             # compute step cost
             dx, dy = npos[0] - current.x, npos[1] - current.y

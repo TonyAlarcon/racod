@@ -1,7 +1,7 @@
 import os
 import csv
 import json
-import astar_metrics_ext   # or whatever you named your module
+import astar_metrics_ext  
 
 def run_tests_from_csv(samples_csv_path: str,
                        map_path: str,
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     map_file     = "./tony/dataset/boston/Boston_0_1024.map"
     output_dir   = "./tony/results/spec_depth"
 
-    threads   = 10
+    threads   = 32
     runaheads = [2,4,8,16,32]
     algos     = ["serial", "pool","pool_ras","createjoin_ras", "createjoin"]
 

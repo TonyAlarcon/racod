@@ -48,7 +48,7 @@ def plot_prediction_accuracy_bars(
     plt.show()
 
 
-
+#TODO: the below uses total_speculations which contains inccorrect ones not in the critical path. therefore, we need to subtract the incorrect from the total
 def compute_per_depth_coverage(results_dir: str, basename: str, algo: str, threads: int, depth_list: list[int]) -> dict[int, float]:
     """
     For each runahead R in depth_list, load the CSV named

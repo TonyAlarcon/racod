@@ -189,34 +189,49 @@ struct NodeCmp {
 // ----------------------------------------------------
 // Serial A* baseline serialized version
 // ----------------------------------------------------
-vector<pair<int,int>> astarSerial(const vector<string>& grid,
-                                  pair<int,int> start,
-                                  pair<int,int> goal,
-                                  int radius) {
+vector<pair<int,int>> astarSerial(
+    const vector<string>& grid,
+    pair<int,int> start,
+    pair<int,int> goal,
+    int radius)
+{
     int sx = start.first, sy = start.second;
     int gx = goal.first,  gy = goal.second;
     auto hfunc = [&](int x,int y){ return hypot(x-gx, y-gy); };
     int H = grid.size(), W = grid[0].size();
     vector<vector<bool>> closed(H, vector<bool>(W,false));
     priority_queue<Node*, vector<Node*>, NodeCmp> open;
-    open.push(new Node(sx, sy, 0, hfunc(sx, sy), nullptr));
+
+    // --- track every node we new() so we can delete them ---
+    vector<Node*> arena;
+    arena.reserve(H*W/4);  // optional heuristic
+
+    // push root
+    Node* root = new Node(sx, sy, 0, hfunc(sx, sy), nullptr);
+    open.push(root);
+    arena.push_back(root);
 
     while (!open.empty()) {
         Node* cur = open.top(); open.pop();
         int x = cur->x, y = cur->y;
-        if (closed[y][x]) { delete cur; continue; }
+        if (closed[y][x]) continue;
         closed[y][x] = true;
 
         if (ENABLE_METRICS)          
             metrics.expansions++;
 
+        // goal?
         if (x == gx && y == gy) {
             vector<pair<int,int>> path;
             for (Node* p = cur; p; p = p->parent)
                 path.emplace_back(p->x, p->y);
             reverse(path.begin(), path.end());
+
+            // cleanup
+            for (Node* n : arena) delete n;
             return path;
         }
+
         for (auto [nx,ny] : getNeighbors(x,y,grid)) {
             if (closed[ny][nx]) continue;
 
@@ -224,79 +239,89 @@ vector<pair<int,int>> astarSerial(const vector<string>& grid,
                 metrics.demand_checks++;
 
             if (!checkCollisionOBB(grid, nx, ny, radius)) continue;
+
             double g2 = cur->g + hypot(nx-x, ny-y);
-            open.push(new Node(nx, ny, g2, hfunc(nx, ny), cur));
+            Node* n = new Node(nx, ny, g2, hfunc(nx, ny), cur);
+            open.push(n);
+            arena.push_back(n);
         }
     }
-    return {}; // no path
+
+    // no path found: clean up
+    for (Node* n : arena) delete n;
+    return {};
 }
 
 
+
 //----------------------------------------------------------------
-//  astarPersistentThreadPool  –  corrected, leak‑free
+//  astarPersistentThreadPool  
 //----------------------------------------------------------------
-vector<pair<int,int>>
-astarPersistentThreadPool(const vector<string>& grid,
-                          pair<int,int> start,
-                          pair<int,int> goal,
-                          int radius,
-                          size_t numThreads)
+vector<pair<int,int>> astarPersistentThreadPool(
+    const vector<string>& grid,
+    pair<int,int> start,
+    pair<int,int> goal,
+    int radius,
+    size_t numThreads)
 {
-    auto h = [&](int x,int y){ return hypot(x-goal.first,y-goal.second); };
+    int H = grid.size(), W = grid[0].size();
+    auto h = [&](int x,int y){ return hypot(x - goal.first, y - goal.second); };
 
-    const int H = grid.size(), W = grid[0].size();
     vector<vector<bool>> closed(H, vector<bool>(W,false));
-
     priority_queue<Node*, vector<Node*>, NodeCmp> open;
-    vector<Node*>                              arena;   // owns *all* nodes
+    vector<Node*> arena;
 
-    auto *root = new Node(start.first,start.second,0.0,h(start.first,start.second),nullptr);
-    open.push(root);  arena.push_back(root);
+    // root node
+    Node* root = new Node(start.first, start.second,
+                          0.0, h(start.first, start.second), nullptr);
+    open.push(root);
+    arena.push_back(root);
 
+    // fixed‐size pool of numThreads workers
     ThreadPool pool(numThreads);
 
-    // cache to avoid duplicate collision checks
+    // cache for collision results
     unordered_map<uint64_t,bool> cache;
     mutex cache_m;
+    auto key = [&](int x,int y){ return (uint64_t(y)<<32) | uint32_t(x); };
 
-    auto key = [](int x,int y){ return (uint64_t(y)<<32)|uint32_t(x); };
+    while (!open.empty()) {
+        Node* cur = open.top(); open.pop();
+        int x = cur->x, y = cur->y;
+        if (closed[y][x]) continue;
+        closed[y][x] = true;
 
-    while(!open.empty()) {
-        Node* cur = open.top();  open.pop();
-        if (closed[cur->y][cur->x]) continue;
-        closed[cur->y][cur->x] = true;
-
-        if (ENABLE_METRICS)  
+        if (ENABLE_METRICS)
             metrics.expansions++;
 
-        if (cur->x==goal.first && cur->y==goal.second) {      // reconstruct
+        // goal check
+        if (x == goal.first && y == goal.second) {
             vector<pair<int,int>> path;
-            for(Node* p=cur; p; p=p->parent) path.emplace_back(p->x,p->y);
-            reverse(path.begin(),path.end());
-            for(Node* n:arena) delete n;                      // tidy‑up
+            for (Node* p = cur; p; p = p->parent)
+                path.emplace_back(p->x, p->y);
+            reverse(path.begin(), path.end());
+            for (Node* n : arena) delete n;
             return path;
         }
 
-        /* --- dispatch neighbour checks -------------------------------- */
-        vector<pair<int,int>> nbrs = getNeighbors(cur->x,cur->y,grid);
-        vector< future<pair<pair<int,int>,bool>> > futs; futs.reserve(nbrs.size());
-
-        for (auto [nx,ny] : nbrs) {
+        // dispatch all neighbor collision‐checks to the pool
+        vector<future<pair<pair<int,int>,bool>>> futs;
+        futs.reserve(8);
+        for (auto [nx,ny] : getNeighbors(x, y, grid)) {
             if (closed[ny][nx]) continue;
-
-            // —— METRIC: count this demand collision check
             if (ENABLE_METRICS)
                 metrics.demand_checks++;
 
             futs.emplace_back(
                 pool.submit([&,nx,ny]{
                     uint64_t k = key(nx,ny);
-                    {   lock_guard<mutex> g(cache_m);
+                    {   lock_guard<mutex> lk(cache_m);
                         auto it = cache.find(k);
-                        if (it!=cache.end()) return make_pair(make_pair(nx,ny), it->second);
+                        if (it != cache.end())
+                            return make_pair(make_pair(nx,ny), it->second);
                     }
-                    bool free = checkCollisionOBB(grid,nx,ny,radius);
-                    {   lock_guard<mutex> g(cache_m);
+                    bool free = checkCollisionOBB(grid, nx, ny, radius);
+                    {   lock_guard<mutex> lk(cache_m);
                         cache[k] = free;
                     }
                     return make_pair(make_pair(nx,ny), free);
@@ -304,21 +329,23 @@ astarPersistentThreadPool(const vector<string>& grid,
             );
         }
 
-        /* --- harvest -------------------------------------------------- */
+        // collect results and enqueue the free neighbors
         for (auto &f : futs) {
             auto [pos, ok] = f.get();
             if (!ok) continue;
-
             int nx = pos.first, ny = pos.second;
-            double g2 = cur->g + hypot(nx-cur->x, ny-cur->y);
-            auto *n  = new Node(nx,ny,g2,h(nx,ny),cur);
+            double g2 = cur->g + hypot(nx - x, ny - y);
+            Node* n = new Node(nx, ny, g2, h(nx, ny), cur);
             open.push(n);
             arena.push_back(n);
         }
     }
-    for(Node* n:arena) delete n;
+
+    // cleanup
+    for (Node* n : arena) delete n;
     return {};
 }
+
 
 // == RASExp ADDITIONS ====================================================
 
@@ -374,7 +401,6 @@ vector<pair<int,int>> astarCreateJoin(
     while (!open.empty()) {
         Node* cur = open.top(); open.pop();
         int x = cur->x, y = cur->y;
-        // skip duplicates (already expanded)
         if (closed[y][x]) continue;
         closed[y][x] = true;
 
@@ -393,30 +419,37 @@ vector<pair<int,int>> astarCreateJoin(
 
         auto nbrs = getNeighbors(x, y, grid);
         vector<bool> freeCheck(nbrs.size(), false);
-        vector<thread> threads;
-        vector<size_t> indices;
-        threads.reserve(numThreads);
 
-        // launch collision checks
-        for (size_t i = 0; i < nbrs.size(); ++i) {
-            int nx = nbrs[i].first, ny = nbrs[i].second;
-            if (closed[ny][nx]) continue;
+        // determine how many threads to run in parallel (capped by numThreads and nbrs.size())
+        size_t threadsToUse = std::min(numThreads, nbrs.size());
 
-            if (ENABLE_METRICS)
-                metrics.demand_checks++;
+        // process neighbors in batches of up to threadsToUse
+        for (size_t startIdx = 0; startIdx < nbrs.size(); startIdx += threadsToUse) {
+            size_t endIdx = std::min(startIdx + threadsToUse, nbrs.size());
+            vector<thread> threads;
+            threads.reserve(endIdx - startIdx);
 
-            indices.push_back(i);
-            threads.emplace_back([&, i, nx, ny] {
-                freeCheck[i] = checkCollisionOBB(grid, nx, ny, radius);
-            });
+            // launch this batch of threads
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                int nx = nbrs[i].first, ny = nbrs[i].second;
+                if (closed[ny][nx]) continue;
+
+                if (ENABLE_METRICS)
+                    metrics.demand_checks++;
+
+                threads.emplace_back([&, i, nx, ny] {
+                    freeCheck[i] = checkCollisionOBB(grid, nx, ny, radius);
+                });
+            }
+
+            // join this batch
+            for (auto& t : threads) t.join();
         }
-        // join threads
-        for (auto& t : threads) t.join();
 
         // enqueue collision-free neighbors
-        for (size_t idx : indices) {
-            if (!freeCheck[idx]) continue;
-            int nx = nbrs[idx].first, ny = nbrs[idx].second;
+        for (size_t i = 0; i < nbrs.size(); ++i) {
+            if (!freeCheck[i]) continue;
+            int nx = nbrs[i].first, ny = nbrs[i].second;
             double g2 = cur->g + hypot(nx - x, ny - y);
             Node* n = new Node(nx, ny, g2, hfunc(nx, ny), cur);
             open.push(n);
@@ -424,7 +457,7 @@ vector<pair<int,int>> astarCreateJoin(
         }
     }
 
-    // no path found
+    // no path found; cleanup
     for (Node* n : arena) delete n;
     return {};
 }
@@ -444,14 +477,13 @@ vector<pair<int,int>> astarCreateJoinRAS(
 {
     int H = grid.size(), W = grid[0].size();
     int sx = start.first, sy = start.second;
-    int gx = goal.first,  gy = goal.second;
-    auto h = [&](int x, int y){ return hypot(x - gx, y - gy); };
+    int gx = goal.first, gy = goal.second;
+    auto h = [&](int x,int y){ return hypot(x - gx, y - gy); };
 
     vector<vector<bool>> closed(H, vector<bool>(W, false));
     vector<vector<CollisionStatus>> status(
         H, vector<CollisionStatus>(W, CollisionStatus::UNKNOWN)
     );
-    // track which cells were ever speculated (so we only count a "success" once)
     vector<vector<bool>> was_speculated(H, vector<bool>(W, false));
 
     priority_queue<Node*, vector<Node*>, NodeCmp> open;
@@ -467,9 +499,7 @@ vector<pair<int,int>> astarCreateJoinRAS(
         int x = cur->x, y = cur->y;
         if (closed[y][x]) continue;
         closed[y][x] = true;
-
-        if (ENABLE_METRICS) 
-            metrics.expansions++;
+        if (ENABLE_METRICS) metrics.expansions++;
 
         // goal?
         if (x == gx && y == gy) {
@@ -481,47 +511,65 @@ vector<pair<int,int>> astarCreateJoinRAS(
             return path;
         }
 
-        // --- demand collision checks ---
+        // --- build demand list ---
         auto nbrs = getNeighbors(x, y, grid);
         vector<pair<int,int>> demand;
         demand.reserve(nbrs.size());
+
         for (auto& nb : nbrs) {
             int nx = nb.first, ny = nb.second;
-
-            // if we already speculated this cell, *use* that result now:
+            // consume any existing speculation
             if (status[ny][nx] != CollisionStatus::UNKNOWN) {
-                // count a successful speculation exactly once per cell
                 if (!closed[ny][nx] && was_speculated[ny][nx] && ENABLE_METRICS) {
                     metrics.successful_speculations++;
-                    was_speculated[ny][nx] = false; // clear so we never count again
+                    was_speculated[ny][nx] = false;
                 }
                 continue;
             }
-
             if (closed[ny][nx]) continue;
             status[ny][nx] = CollisionStatus::PENDING;
-            if (ENABLE_METRICS) 
-                metrics.demand_checks++;
+            if (ENABLE_METRICS) metrics.demand_checks++;
             demand.emplace_back(nx, ny);
         }
 
-        // launch demand threads
-        vector<thread> threads;
-        threads.reserve(numThreads);
-        for (auto& p : demand) {
-            int nx = p.first, ny = p.second;
-            threads.emplace_back([&,nx,ny] {
-                bool ok = checkCollisionOBB(grid, nx, ny, radius);
-                status[ny][nx] = ok ? CollisionStatus::FREE
-                                    : CollisionStatus::BLOCKED;
-            });
-        }
+        // --- CASE 1: not enough threads for speculation ---
+        if (numThreads <= demand.size()) {
+            // batch the demand checks exactly like astarCreateJoin
+            for (size_t start = 0; start < demand.size(); start += numThreads) {
+                size_t end = min(start + numThreads, demand.size());
+                vector<thread> batch;
+                batch.reserve(end - start);
 
-        // --- speculative run-ahead ---
-        if (!threads.empty()) {
-            int depth = maxDepth;
-            int dir   = getDirIndex(cur);
+                for (size_t i = start; i < end; ++i) {
+                    auto [nx, ny] = demand[i];
+                    batch.emplace_back([&,nx,ny] {
+                        bool ok = checkCollisionOBB(grid, nx, ny, radius);
+                        status[ny][nx] = ok ? CollisionStatus::FREE
+                                            : CollisionStatus::BLOCKED;
+                    });
+                }
+                for (auto& t : batch) t.join();
+            }
+        }
+        // --- CASE 2: room for speculation and there is at least one demand neighbor ---
+        if (demand.size() < numThreads && !demand.empty()) {
+            vector<thread> threads;
+            threads.reserve(numThreads);
+
+            // 1) launch *all* demand‐checks (≤ demand.size() < numThreads)
+            for (auto& p : demand) {
+                int nx = p.first, ny = p.second;
+                threads.emplace_back([&,nx,ny] {
+                    bool ok = checkCollisionOBB(grid, nx, ny, radius);
+                    status[ny][nx] = ok ? CollisionStatus::FREE
+                                        : CollisionStatus::BLOCKED;
+                });
+            }
+
+            // 2) fill leftover slots with RAS run‐ahead
+            int dir = getDirIndex(cur);
             Node* pred = cur;
+            int depth = maxDepth;
             while (threads.size() < numThreads && depth-- > 0) {
                 int px = pred->x + RAS_DELTAS[dir].first;
                 int py = pred->y + RAS_DELTAS[dir].second;
@@ -535,27 +583,27 @@ vector<pair<int,int>> astarCreateJoinRAS(
                         status[ny2][nx2] != CollisionStatus::UNKNOWN)
                         continue;
                     status[ny2][nx2] = CollisionStatus::PENDING;
-
-                    if (ENABLE_METRICS)
-                        metrics.total_speculations++;
-                    // remember we speculated this cell
+                    if (ENABLE_METRICS) metrics.total_speculations++;
                     was_speculated[ny2][nx2] = true;
 
                     threads.emplace_back([&,nx2,ny2] {
                         bool ok2 = checkCollisionOBB(grid, nx2, ny2, radius);
                         status[ny2][nx2] = ok2 ? CollisionStatus::FREE
-                                               : CollisionStatus::BLOCKED;
+                                            : CollisionStatus::BLOCKED;
                     });
                     if (threads.size() >= numThreads) break;
                 }
             }
+
+            // 3) join them all
+            for (auto& t : threads) t.join();
         }
+        // else: either demand.size() >= numThreads (we batch‐only earlier),
+        // or demand.empty() (nothing to do at all)
 
-        // join everything
-        for (auto& t : threads) t.join();
 
-        // --- enqueue free neighbors ---
-        for (auto& nb : getNeighbors(x, y, grid)) {
+        // --- enqueue all FREE neighbors ---
+        for (auto& nb : nbrs) {
             int nx = nb.first, ny = nb.second;
             if (closed[ny][nx] ||
                 status[ny][nx] != CollisionStatus::FREE)
@@ -735,7 +783,7 @@ PYBIND11_MODULE(astar_metrics_ext, m) {
                            const string& algo,
                            bool enable_metrics) {
         ENABLE_METRICS = enable_metrics;
-        if (enable_metrics) metrics = Metrics();
+        metrics = Metrics();
 
         py::gil_scoped_release release;
         auto grid = loadMap(map_path);

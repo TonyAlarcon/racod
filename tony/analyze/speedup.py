@@ -59,7 +59,7 @@ def plot_relative_speedup(results_dir: str, map_name: str, threads: list, algori
     plt.tight_layout()
 
     if save:
-        out_path = os.path.join(results_dir, f"{map_name}_relative_speedup.png")
+        out_path = os.path.join('tony/analyze', f"relative_speedup.png")
         plt.savefig(out_path)
         print(f"Saved speedup plot to {out_path}")
     else:

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import ast
 from collections import Counter
 import numpy as np
-
+import os
 
 
 def run_lengths_from_paths(path_strs):
@@ -26,7 +26,7 @@ def run_lengths_from_paths(path_strs):
         runs.append(run_len)
     return runs
 
-def plot_runlength_cdf(run_lengths):
+def plot_runlength_cdf(run_lengths, save_path=None):
     cnt = Counter(run_lengths)
     total_steps = sum(k*v for k,v in cnt.items())
     ks = sorted(cnt)
@@ -44,7 +44,11 @@ def plot_runlength_cdf(run_lengths):
     plt.title('CDF of run‐lengths')
     plt.grid(True)
     plt.tight_layout()
-    plt.show()
+    #plt.show()
+    
+    if save_path:
+        plt.savefig(save_path)
+        
 
 
 def compute_step_based_stats(path_strs, targets=(0.5, 0.8, 0.9)):
@@ -82,10 +86,14 @@ def compute_step_based_stats(path_strs, targets=(0.5, 0.8, 0.9)):
 
 if __name__ == "__main__":
     # Example usage:
-    csv_path = "./tony/results/Boston_0_1024_results_pool_ras_1.csv"  # adjust as needed
+    csv_path = "./tony/results/speedup/Boston_0_1024_results_pool_ras_1.csv" 
     df = pd.read_csv(csv_path)
     paths = df['path']  # your pandas column of path‐strings
+    dir = 'tony/analyze'
+    title = 'runlength_cdf.png'
+    save_path = os.path.join(dir, title)
+    
     rl = run_lengths_from_paths(paths)
-    plot_runlength_cdf(rl)
+    plot_runlength_cdf(rl, save_path=save_path)
     stats = compute_step_based_stats(paths)
     print("Run-length stats:", stats)

@@ -159,7 +159,7 @@ def save_samples_to_csv(map_path: str, samples: List[Tuple[Tuple[int, int], Tupl
     """
     # Extract map name without extension
     map_name = os.path.splitext(os.path.basename(map_path))[0]
-    filename = f"{map_name}_samples.csv"
+    filename = f"{map_name}_samples_radius{radius}.csv"
     file_path = os.path.join(output_dir, filename)
 
     # Write CSV
@@ -180,14 +180,14 @@ if __name__ == "__main__":
 
     # Sample feasible start/goal pairs
     robot_radius = 10
-    sample_count = 1
+    sample_count = 100
     pairs = sample_feasible_pairs(grid, robot_radius, sample_count)
     print(pairs)
 
     # Save to CSV
     output_dir = "tony/dataset/boston"
-    #csv_path = save_samples_to_csv(map_file, pairs, robot_radius, output_dir)
-    #print(f"Saved {len(pairs)} samples to {csv_path}")
+    csv_path = save_samples_to_csv(map_file, pairs, robot_radius, output_dir)
+    print(f"Saved {len(pairs)} samples to {csv_path}")
     
     
     

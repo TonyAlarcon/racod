@@ -86,10 +86,10 @@ def plot_accuracy_and_coverage( acc_by_R: dict[int, float], cov_by_R: dict[int, 
 
 
 if __name__ == "__main__":
-    results_dir = "/Users/tonyalarcon/repos/research/racod/tony/results/spec_depth"
+    results_dir = "/home/droneresponse/tony/repos/racod/tony/results/spec_depth"
     basename    = "Boston_0_1024"
-    algo        = "createjoin_ras"
-    threads     = 10
+    algo        = "pool_ras"
+    threads     = 32
     depth_list  = [2,4,8,16,32]
 
     acc_by_R = compute_per_depth_accuracy(

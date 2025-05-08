@@ -64,12 +64,12 @@ if __name__ == "__main__":
     print("A* extension initialized.")
     # Configuration parameters
     threads = [1, 2, 4, 8, 16, 32]
-    algorithms = [ "createjoin", "createjoin_ras"]
+    algorithms =["serial", "pool","pool_ras","createjoin_ras", "createjoin"]
     #algorithms = ["createjoin", "createjoin_ras"]
     max_depth = 8
     algo = "pool"
     output_dir = "./results/speedup"
-    samples_csv = "./dataset/boston/Boston_0_1024_samples.csv"
+    samples_csv = "./dataset/boston/Boston_0_1024_samples_radius10.csv"
     map_file = "./dataset/boston/Boston_0_1024.map"
     
     for algo in algorithms:

@@ -59,7 +59,7 @@ def run_tests_from_csv(samples_csv_path: str,
 
 
 if __name__ == "__main__":
-    samples_csv = "./dataset/boston/Boston_0_1024_samples.csv"
+    samples_csv =  "./dataset/boston/Boston_0_1024_samples_radius10.csv"
     map_file     = "./dataset/boston/Boston_0_1024.map"
     output_dir   = "./results/spec_depth"
 

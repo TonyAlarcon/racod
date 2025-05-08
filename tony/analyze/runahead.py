@@ -81,7 +81,7 @@ def plot_accuracy_and_coverage( acc_by_R: dict[int, float], cov_by_R: dict[int, 
             savepath,
             f"accuracy_coverage.png"
         ))
-    #plt.show()
+    plt.show()
   
 
 

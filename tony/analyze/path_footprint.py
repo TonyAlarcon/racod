@@ -44,10 +44,12 @@ def plot_runlength_cdf(run_lengths, save_path=None):
     plt.title('CDF of run‐lengths')
     plt.grid(True)
     plt.tight_layout()
-    #plt.show()
+    
     
     if save_path:
         plt.savefig(save_path)
+        
+    #plt.show()
         
 
 
@@ -89,7 +91,7 @@ if __name__ == "__main__":
     csv_path = "./tony/results/speedup/Boston_0_1024_results_pool_ras_1.csv" 
     df = pd.read_csv(csv_path)
     paths = df['path']  # your pandas column of path‐strings
-    dir = 'tony/analyze'
+    dir = './tony/analyze'
     title = 'runlength_cdf.png'
     save_path = os.path.join(dir, title)
     

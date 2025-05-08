@@ -1,1 +1,4 @@
-I have tried to do the following things in order to replicate the Hardware accelerator from "RACOD: Algorithm/Hardware Co-design for Mobile Robot Path Planning". However, I could not find any code to implement. So, I tried to make a simple or dummy verilog code and compile by icarus verilog
+I have tried to do the following things in order to replicate the Hardware accelerator 
+from "RACOD: Algorithm/Hardware Co-design for Mobile Robot Path Planning". 
+However, I could not find any code to implement. So, I tried to make a simple or dummy 
+verilog code and compile by icarus verilog

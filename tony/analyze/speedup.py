@@ -71,9 +71,9 @@ if __name__ == "__main__":
     results_dir = "./tony/results/speedup"
     map_name = "Boston_0_1024"
     algorithm = "pool_ras"
-    threads = [1, 2, 4, 8, 10]
+    threads = [1, 2, 4, 8, 16, 32]
     
-    plot_time_vs_threads(results_dir, map_name, algorithm, threads)
+    #plot_time_vs_threads(results_dir, map_name, algorithm, threads)
     
     algorithms = ["pool", "pool_ras", "serial", "createjoin", "createjoin_ras"]
     baseline_csv = os.path.join(results_dir, f"{map_name}_results_pool_1.csv")

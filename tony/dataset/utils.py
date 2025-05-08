@@ -179,14 +179,15 @@ if __name__ == "__main__":
     grid = load_map(map_file)
 
     # Sample feasible start/goal pairs
-    robot_radius = 3
-    sample_count = 100
+    robot_radius = 10
+    sample_count = 1
     pairs = sample_feasible_pairs(grid, robot_radius, sample_count)
+    print(pairs)
 
     # Save to CSV
     output_dir = "tony/dataset/boston"
-    csv_path = save_samples_to_csv(map_file, pairs, robot_radius, output_dir)
-    print(f"Saved {len(pairs)} samples to {csv_path}")
+    #csv_path = save_samples_to_csv(map_file, pairs, robot_radius, output_dir)
+    #print(f"Saved {len(pairs)} samples to {csv_path}")
     
     
     

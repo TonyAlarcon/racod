@@ -66,11 +66,11 @@ if __name__ == "__main__":
     # your provided config
     config = {
         "map"         : "./dataset/boston/Boston_0_1024.map",
-        "start"       : "332,758",
-        "goal"        : "80,773",
-        "radius"      : 5,
-        "threads"     : 1,
-        "algorithm"   : "serial",  #
-        "max_depth"   : 2
+        "start"       : "415,847",
+        "goal"        : "73,629",
+        "radius"      : 3,
+        "threads"     : 8,
+        "algorithm"   : "createjoin_ras",  #
+        "max_depth"   : 8
     }
     run_search(config)

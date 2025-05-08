@@ -2,7 +2,7 @@ import os
 import csv
 import json
 
-import astar_ext
+import astar_metrics_ext
 
 def run_tests_from_csv(samples_csv_path: str, map_path: str, threads: int, max_depth: int,algo: str, output_dir: str = '.') -> str:
     """
@@ -31,7 +31,7 @@ def run_tests_from_csv(samples_csv_path: str, map_path: str, threads: int, max_d
             radius = int(row['radius'])
 
             # Run the A* extension
-            path, elapsed = astar_ext.run_astar(
+            path, elapsed, metrics = astar_metrics_ext.run_astar(
                 map_path,
                 (sx, sy),
                 (gx, gy),
@@ -64,13 +64,13 @@ if __name__ == "__main__":
     print("A* extension initialized.")
     # Configuration parameters
     threads = [1, 2, 4, 8, 16, 32]
-    algorithms = ["pool", "serial", "pool_ras", "create_join", "createjoin_ras"]
+    algorithms = [ "createjoin", "createjoin_ras"]
     #algorithms = ["createjoin", "createjoin_ras"]
     max_depth = 8
     algo = "pool"
-    output_dir = "./tony/results/speedup"
-    samples_csv = "./tony/dataset/boston/Boston_0_1024_samples.csv"
-    map_file = "./tony/dataset/boston/Boston_0_1024.map"
+    output_dir = "./results/speedup"
+    samples_csv = "./dataset/boston/Boston_0_1024_samples.csv"
+    map_file = "./dataset/boston/Boston_0_1024.map"
     
     for algo in algorithms:
         for thread in threads:

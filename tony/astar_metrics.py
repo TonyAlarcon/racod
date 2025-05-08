@@ -59,9 +59,9 @@ def run_tests_from_csv(samples_csv_path: str,
 
 
 if __name__ == "__main__":
-    samples_csv = "./tony/dataset/boston/Boston_0_1024_samples.csv"
-    map_file     = "./tony/dataset/boston/Boston_0_1024.map"
-    output_dir   = "./tony/results/spec_depth"
+    samples_csv = "./dataset/boston/Boston_0_1024_samples.csv"
+    map_file     = "./dataset/boston/Boston_0_1024.map"
+    output_dir   = "./results/spec_depth"
 
     threads   = 32
     runaheads = [2,4,8,16,32]
